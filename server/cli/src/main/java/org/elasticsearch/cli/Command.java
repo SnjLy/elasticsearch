@@ -64,7 +64,7 @@ public abstract class Command implements Closeable {
     /** Parses options for this command from args and executes it. */
     public final int main(String[] args, Terminal terminal) throws Exception {
         if (addShutdownHook()) {
-
+            //利用Runtime.getRuntime().addShutdownHook方法加入一个Hook，在程序退出时触发该Hook
             shutdownHookThread = new Thread(() -> {
                 try {
                     this.close();
@@ -87,6 +87,7 @@ public abstract class Command implements Closeable {
         beforeMain.run();
 
         try {
+            //4、mainWithoutErrorHandling
             mainWithoutErrorHandling(args, terminal);
         } catch (OptionException e) {
             printHelp(terminal);
@@ -104,6 +105,7 @@ public abstract class Command implements Closeable {
 
     /**
      * Executes the command, but all errors are thrown.
+     * 解析传进来的参数并配置 terminal
      */
     void mainWithoutErrorHandling(String[] args, Terminal terminal) throws Exception {
         final OptionSet options = parser.parse(args);
@@ -120,7 +122,7 @@ public abstract class Command implements Closeable {
         } else {
             terminal.setVerbosity(Terminal.Verbosity.NORMAL);
         }
-
+        //5、执行 EnvironmentAwareCommand 中的 execute()，（重写了command里面抽象的execute方法）
         execute(terminal, options);
     }
 

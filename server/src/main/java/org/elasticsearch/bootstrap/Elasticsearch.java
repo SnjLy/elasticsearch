@@ -41,6 +41,7 @@ import java.util.Arrays;
 import java.util.Locale;
 
 /**
+ * ES启动入口
  * This class starts elasticsearch.
  */
 class Elasticsearch extends EnvironmentAwareCommand {
@@ -70,7 +71,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
     }
 
     /**
-     * Main entry point for starting elasticsearch
+     * Main entry point for starting elasticsearch :0 启动ES main 方法入口
      */
     public static void main(final String[] args) throws Exception {
         // we want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
@@ -78,11 +79,14 @@ class Elasticsearch extends EnvironmentAwareCommand {
         System.setSecurityManager(new SecurityManager() {
             @Override
             public void checkPermission(Permission perm) {
+                //1. 权限检查
                 // grant all permissions so that we can later set the security manager to the one that we want
             }
         });
         LogConfigurator.registerErrorListener();
+        //实例化Elasticsearch
         final Elasticsearch elasticsearch = new Elasticsearch();
+        //2、调用Elasticsearch.main方法
         int status = main(args, elasticsearch, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {
             exit(status);
@@ -90,6 +94,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
     }
 
     static int main(final String[] args, final Elasticsearch elasticsearch, final Terminal terminal) throws Exception {
+        //3. 执行父类的 command main
         return elasticsearch.main(args, terminal);
     }
 
@@ -124,6 +129,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
         }
 
         try {
+            //10、初始化
             init(daemonize, pidFile, quiet, env);
         } catch (NodeValidationException e) {
             throw new UserException(ExitCodes.CONFIG, e.getMessage());
@@ -133,6 +139,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
     void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv)
         throws NodeValidationException, UserException {
         try {
+            //11、执行 Bootstrap 中的 init 方法
             Bootstrap.init(!daemonize, pidFile, quiet, initialEnv);
         } catch (BootstrapException | RuntimeException e) {
             // format exceptions to the console in a special way

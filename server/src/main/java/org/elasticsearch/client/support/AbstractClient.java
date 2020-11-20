@@ -396,6 +396,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     /**
+     * 所有action的入口
      * This is the single execution point of *all* clients.
      */
     @Override

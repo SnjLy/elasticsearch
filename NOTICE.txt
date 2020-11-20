@@ -3,3 +3,7 @@ Copyright 2009-2018 Elasticsearch
 
 This product includes software developed by The Apache Software
 Foundation (http://www.apache.org/).
+
+
+代码阅读流程理解:
+https://segmentfault.com/a/1190000017846551

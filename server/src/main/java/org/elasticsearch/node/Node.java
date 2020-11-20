@@ -264,9 +264,10 @@ public class Node implements Closeable {
             originalSettings = environment.settings();
             Settings tmpSettings = Settings.builder().put(environment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
-
+            //实例化node,第一步先创建NodeEnvironment
             // create the node environment as soon as possible, to recover the node id and enable logging
             try {
+                //1、创建节点环境,比如节点名称,节点ID,分片信息,存储元,以及分配内存准备给节点使用
                 nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
                 resourcesToClose.add(nodeEnvironment);
             } catch (IOException ex) {
@@ -283,7 +284,7 @@ public class Node implements Closeable {
             } else {
                 logger.info("node name [{}], node ID [{}]", nodeName, nodeId);
             }
-
+            //2、打印出JVM相关信息
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
                 "version[{}], pid[{}], build[{}/{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
@@ -301,13 +302,14 @@ public class Node implements Closeable {
                 Constants.JAVA_VERSION,
                 Constants.JVM_VERSION);
             logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
+            //检查当前版本是不是 pre-release 版本（Snapshot）
             warnIfPreRelease(Version.CURRENT, Build.CURRENT.isSnapshot(), logger);
 
             if (logger.isDebugEnabled()) {
                 logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
                     environment.configFile(), Arrays.toString(environment.dataFiles()), environment.logsFile(), environment.pluginsFile());
             }
-
+            //实例化node第二步，读取并加载所有插件、模块
             this.pluginsService = new PluginsService(tmpSettings, environment.configFile(), environment.modulesFile(), environment.pluginsFile(), classpathPlugins);
             this.settings = pluginsService.updatedSettings();
             localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
@@ -330,7 +332,9 @@ public class Node implements Closeable {
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
+            //第三步、创建NodeClient，用于执行actions
             client = new NodeClient(settings, threadPool);
+            //第四步、创建各个service和modules
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
             AnalysisModule analysisModule = new AnalysisModule(this.environment, pluginsService.filterPlugins(AnalysisPlugin.class));
@@ -412,6 +416,7 @@ public class Node implements Closeable {
                 threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService);
             modules.add(actionModule);
 
+            //7、获取RestController,用于处理各种Elasticsearch的rest命令,如_cat,_all,_cat/health,_clusters等rest命令(Elasticsearch称之为action)
             final RestController restController = actionModule.getRestController();
             final NetworkModule networkModule = new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class),
                 threadPool, bigArrays, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, xContentRegistry,
@@ -479,7 +484,7 @@ public class Node implements Closeable {
             final PersistentTasksClusterService persistentTasksClusterService =
                 new PersistentTasksClusterService(settings, registry, clusterService);
             final PersistentTasksService persistentTasksService = new PersistentTasksService(settings, clusterService, threadPool, client);
-
+            //绑定和注入对象
             modules.add(b -> {
                     b.bind(Node.class).toInstance(this);
                     b.bind(NodeService.class).toInstance(nodeService);
@@ -540,9 +545,10 @@ public class Node implements Closeable {
                 .map(injector::getInstance).collect(Collectors.toList()));
             resourcesToClose.addAll(pluginLifecycleComponents);
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
+            //初始化nodeClient
             client.initialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}),
                     () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
-
+            //初始化rest处理器，这个非常重要
             if (NetworkModule.HTTP_ENABLED.get(settings)) {
                 logger.debug("initializing HTTP handlers ...");
                 actionModule.initRestHandlers(() -> clusterService.state().nodes());
@@ -625,7 +631,8 @@ public class Node implements Closeable {
         Logger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
         logger.info("starting ...");
         pluginLifecycleComponents.forEach(LifecycleComponent::start);
-
+        //1、利用Guice获取上述注册的各种模块以及服务
+        //Node 的启动其实就是 node 里每个组件的启动，同样的，分别调用不同的实例的 start 方法来启动这个组件, 如下
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
@@ -657,6 +664,7 @@ public class Node implements Closeable {
         try {
             // we load the global state here (the persistent part of the cluster state stored on disk) to
             // pass it to the bootstrap checks to allow plugins to enforce certain preconditions based on the recovered state.
+            //根据配置文件看当前节点是master还是data节点
             if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
                 onDiskMetadata = injector.getInstance(GatewayMetaState.class).loadMetaState();
             } else {
@@ -671,7 +679,7 @@ public class Node implements Closeable {
             .class)
             .stream()
             .flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList()));
-
+        //2、将当前节点加入到一个集群簇中去,并启动当前节点
         clusterService.addStateApplier(transportService.getTaskManager());
         // start after transport service so the local disco is known
         discovery.start(); // start before cluster service so that it can set initial state on ClusterApplierService

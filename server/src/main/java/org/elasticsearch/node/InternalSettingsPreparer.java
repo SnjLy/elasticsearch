@@ -84,7 +84,7 @@ public class InternalSettingsPreparer {
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, properties);
         Environment environment = new Environment(output.build(), configPath);
-
+        //查看 es.path.conf 目录下的配置文件是不是 yml 格式的，如果不是则抛出一个异常
         if (Files.exists(environment.configFile().resolve("elasticsearch.yaml"))) {
             throw new SettingsException("elasticsearch.yaml was deprecated in 5.5.0 and must be renamed to elasticsearch.yml");
         }
@@ -97,6 +97,7 @@ public class InternalSettingsPreparer {
         Path path = environment.configFile().resolve("elasticsearch.yml");
         if (Files.exists(path)) {
             try {
+                //加载文件并读取配置文件内容
                 output.loadFromPath(path);
             } catch (IOException e) {
                 throw new SettingsException("Failed to load settings from " + path.toString(), e);

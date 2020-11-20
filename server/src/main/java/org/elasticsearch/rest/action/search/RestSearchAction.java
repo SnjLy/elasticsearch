@@ -87,6 +87,8 @@ public class RestSearchAction extends BaseRestHandler {
          * be null later. If that is confusing to you then you are in good
          * company.
          */
+        //RestSearchAction接收并开始处理请求
+        //RestSearchAction解析并验证搜索参数，并将其封装成SearchRequest，并指定服务端要处理该请求的Action：indices:data/read/search
         IntConsumer setSize = size -> searchRequest.source().size(size);
         request.withContentOrSourceParamParserOrNull(parser ->
             parseSearchRequest(searchRequest, request, parser, setSize));

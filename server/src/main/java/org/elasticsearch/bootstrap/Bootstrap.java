@@ -99,7 +99,7 @@ final class Bootstrap {
     public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean systemCallFilter, boolean ctrlHandler) {
         final Logger logger = Loggers.getLogger(Bootstrap.class);
 
-        // check if the user is running as root, and bail
+        // check if the user is running as root, and bail 检查是否是root用户运行
         if (Natives.definitelyRunningAsRoot()) {
             throw new RuntimeException("can not run elasticsearch as root");
         }
@@ -108,7 +108,7 @@ final class Bootstrap {
         if (systemCallFilter) {
             Natives.tryInstallSystemCallFilter(tmpFile);
         }
-
+        //系统调用和mlockAll检查；尝试设置最大线程数，最大虚拟内存，最大FD等。初始化探针initializeProbes()，用于操作系统，进程，jvm的监控。
         // mlockall if requested
         if (mlockAll) {
             if (Constants.WINDOWS) {
@@ -160,7 +160,7 @@ final class Bootstrap {
     }
 
     private void setup(boolean addShutdownHook, Environment environment) throws BootstrapException {
-        Settings settings = environment.settings();
+        Settings settings = environment.settings(); //环境配置
 
         try {
             spawner.spawnNativeControllers(environment);
@@ -209,8 +209,10 @@ final class Bootstrap {
         } catch (IOException | NoSuchAlgorithmException e) {
             throw new BootstrapException(e);
         }
-
+        //16、创建节点
         node = new Node(environment) {
+            //重写validateNodeBeforeAcceptingRequests方法。具体主要包括三部分，第一是启动插件服务（es提供了插件功能来进行扩展功能，这也是它的一个亮点），
+            // 加载需要的插件，第二是配置node环境，最后就是通过guice加载各个模块
             @Override
             protected void validateNodeBeforeAcceptingRequests(
                 final BootstrapContext context,
@@ -262,6 +264,7 @@ final class Bootstrap {
     }
 
     private void start() throws NodeValidationException {
+        //18、node启动， keepAliveThread启动
         node.start();
         keepAliveThread.start();
     }
@@ -275,6 +278,15 @@ final class Bootstrap {
     }
 
     /**
+     * Elasticsearch系统启动时调用
+     * 该方法主要有：
+     * 1、创建 Bootstrap 实例
+     * 2、如果注册了安全模块则将相关配置加载进来
+     * 3、创建 Elasticsearch 运行的必须环境以及相关配置, 如将 config、scripts、plugins、modules、logs、lib、bin 等配置目录加载到运行环境中
+     * 4、log 配置环境，创建日志上下文
+     * 5、检查是否存在 PID 文件，如果不存在，创建 PID 文件
+     * 6、检查 Lucene 版本
+     * 7、调用 setup 方法（用当前环境来创建一个节点）
      * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
     static void init(
@@ -285,13 +297,15 @@ final class Bootstrap {
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
         BootstrapInfo.init();
-
+        //12、创建一个 Bootstrap 实例
         INSTANCE = new Bootstrap();
 
-        final SecureSettings keystore = loadSecureSettings(initialEnv);
+        final SecureSettings keystore = loadSecureSettings(initialEnv); //如果注册了安全模块则将相关配置加载进来
+
+        //初始化环境
         final Environment environment = createEnvironment(foreground, pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
         try {
-            LogConfigurator.configure(environment);
+            LogConfigurator.configure(environment); //13、log 配置环境
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
@@ -315,14 +329,14 @@ final class Bootstrap {
             }
 
             // fail if somebody replaced the lucene jars
-            checkLucene();
+            checkLucene(); //14、检查Lucene版本
 
             // install the default uncaught exception handler; must be done before security is
             // initialized as we do not want to grant the runtime permission
             // setDefaultUncaughtExceptionHandler
             Thread.setDefaultUncaughtExceptionHandler(
                 new ElasticsearchUncaughtExceptionHandler(() -> Node.NODE_NAME_SETTING.get(environment.settings())));
-
+            //15、调用 setup 方法
             INSTANCE.setup(true, environment);
 
             try {
@@ -331,7 +345,7 @@ final class Bootstrap {
             } catch (IOException e) {
                 throw new BootstrapException(e);
             }
-
+            //17、调用 Boostrap start 方法, 调用node.start方法启动节点
             INSTANCE.start();
 
             if (closeStandardStreams) {

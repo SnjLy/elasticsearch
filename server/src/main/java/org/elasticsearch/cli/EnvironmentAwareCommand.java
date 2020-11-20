@@ -78,16 +78,20 @@ public abstract class EnvironmentAwareCommand extends Command {
             }
             settings.put(kvp.key, kvp.value);
         }
-
+        //6、根据我们ide配置的 vm options 进行设置path.data、path.home、path.logs
         putSystemPropertyIfSettingIsMissing(settings, "path.data", "es.path.data");
         putSystemPropertyIfSettingIsMissing(settings, "path.home", "es.path.home");
         putSystemPropertyIfSettingIsMissing(settings, "path.logs", "es.path.logs");
 
+        //7、先调用 createEnv 创建环境, 在createEnv中加载配置文件，准备环境
         execute(terminal, options, createEnv(terminal, settings));
+        //这是个抽象方法，那么它的实现方法在 Elasticsearch 类中
+        //9、执行elasticsearch的execute方法，elasticsearch中重写了EnvironmentAwareCommand中的抽象execute方法
     }
 
     /** Create an {@link Environment} for the command to use. Overrideable for tests. */
     protected Environment createEnv(final Terminal terminal, final Map<String, String> settings) throws UserException {
+        //8、读取我们 vm options 中配置的 es.path.conf
         final String esPathConf = System.getProperty("es.path.conf");
         if (esPathConf == null) {
             throw new UserException(ExitCodes.CONFIG, "the system property [es.path.conf] must be set");
@@ -102,7 +106,7 @@ public abstract class EnvironmentAwareCommand extends Command {
 
     /** Ensure the given setting exists, reading it from system properties if not already set. */
     private static void putSystemPropertyIfSettingIsMissing(final Map<String, String> settings, final String setting, final String key) {
-        final String value = System.getProperty(key);
+        final String value = System.getProperty(key); //获取key（es.path.data）找系统设置
         if (value != null) {
             if (settings.containsKey(setting)) {
                 final String message =
